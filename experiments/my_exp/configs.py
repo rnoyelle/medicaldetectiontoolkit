@@ -46,7 +46,7 @@ class configs(DefaultConfigs):
         self.dim = 3  # 2
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn', 'detection_unet'].
-        self.model = 'mrcnn'  # 'retina_unet'
+        self.model = 'ufrcnn'  # 'mrcnn'  # 'retina_unet'
 
         DefaultConfigs.__init__(self, self.model, server_env, self.dim)
 
@@ -57,7 +57,7 @@ class configs(DefaultConfigs):
         self.pp_name = 'lymphoma_mdt'
         self.input_df_name = 'info_df.pickle'
         #  self.pp_data_path = '/media/gregor/HDD2TB/data/lidc/{}'.format(self.pp_name)
-        self.pp_data_path = "/media/oncopole/83c5223d-7a01-4ed0-b268-b877a7da96e2/Rudy/data/{}".format(self.pp_name)
+        self.pp_data_path = self.pp_dir
         self.pp_test_data_path = self.pp_data_path  # change if test_data in separate folder.
 
         # settings for deployment in cloud. "/media/oncopole/83c5223d-7a01-4ed0-b268-b877a7da96e2/Rudy/data"
@@ -233,17 +233,18 @@ class configs(DefaultConfigs):
         self.n_plot_rpn_props = 5 if self.dim == 2 else 30
 
         # number of classes for head networks: n_foreground_classes + 1 (background)
-        self.head_classes = 3
+        # self.head_classes = 3
+        self.head_classes = 2
 
         # seg_classes hier refers to the first stage classifier (RPN)
         self.num_seg_classes = 2  # foreground vs. background
 
         # feature map strides per pyramid level are inferred from architecture.
-        self.backbone_strides = {'xy': [4, 8, 16, 32], 'z': [1, 2, 4, 8]}
+        self.backbone_strides = {'xy': [4, 8, 16, 32], 'z': [1, 2, 4, 8, 16, 32]}
 
         # anchor scales are chosen according to expected object sizes in data set. Default uses only one anchor scale
         # per pyramid level. (outer list are pyramid levels (corresponding to BACKBONE_STRIDES), inner list are scales per level.)
-        self.rpn_anchor_scales = {'xy': [[8], [16], [32], [64]], 'z': [[2], [4], [8], [16]]}
+        self.rpn_anchor_scales = {'xy': [[8], [16], [32], [64]], 'z': [[2], [4], [8], [16], [32], [64]]}
 
         # choose which pyramid levels to extract features from: P2: 0, P3: 1, P4: 2, P5: 3.
         self.pyramid_levels = [0, 1, 2, 3]
@@ -268,9 +269,9 @@ class configs(DefaultConfigs):
         # poolsize to draw top-k candidates from will be shem_poolsize * n_negative_samples.
         self.shem_poolsize = 10
 
-        self.pool_size = (7, 7) if self.dim == 2 else (7, 7, 3)
-        self.mask_pool_size = (14, 14) if self.dim == 2 else (14, 14, 5)
-        self.mask_shape = (28, 28) if self.dim == 2 else (28, 28, 10)
+        self.pool_size = (7, 7) if self.dim == 2 else (7, 7, 7)
+        self.mask_pool_size = (14, 14) if self.dim == 2 else (14, 14, 14)
+        self.mask_shape = (28, 28) if self.dim == 2 else (28, 28, 28)
 
         self.rpn_bbox_std_dev = np.array([0.1, 0.1, 0.1, 0.2, 0.2, 0.2])
         self.bbox_std_dev = np.array([0.1, 0.1, 0.1, 0.2, 0.2, 0.2])
@@ -313,7 +314,7 @@ class configs(DefaultConfigs):
         if self.model == 'ufrcnn':
             self.operate_stride1 = True
             self.class_specific_seg_flag = True
-            self.num_seg_classes = 3 if self.class_specific_seg_flag else 2
+            self.num_seg_classes = 2  # 3 if self.class_specific_seg_flag else 2
             self.frcnn_mode = True
 
         if self.model == 'retina_net' or self.model == 'retina_unet' or self.model == 'prob_detector':

@@ -56,11 +56,23 @@ def get_train_generators(cf, logger):
         with open(os.path.join(cf.exp_dir, 'fold_ids.pickle'), 'wb') as handle:
             pickle.dump(fg, handle)
         cf.created_fold_id_pickle = True
+        train_ix, val_ix, test_ix, _ = fg[cf.fold]
     else:
-        with open(os.path.join(cf.exp_dir, 'fold_ids.pickle'), 'rb') as handle:
-            fg = pickle.load(handle)
+        if os.path.isfile(os.path.join(cf.exp_dir, 'fold_ids.pickle')):
+            with open(os.path.join(cf.exp_dir, 'fold_ids.pickle'), 'rb') as handle:
+                fg = pickle.load(handle)
+            train_ix, val_ix, test_ix, _ = fg[cf.fold]
+        else:
+            df = pd.read_csv(cf.csv_path)
+            df = df[df['PET'] == 'pet0']
 
-    train_ix, val_ix, test_ix, _ = fg[cf.fold]
+            train_ix = df[df['subset'] =='train']['STUDY_UID'].values
+            val_ix = df[df['subset'] =='val']['STUDY_UID'].values
+            test_ix = df[df['subset'] =='test']['STUDY_UID'].values
+            with open(os.path.join(cf.exp_dir, 'fold_ids.pickle'), 'wb') as handle:
+                pickle.dump([[train_ix, val_ix, test_ix, 0]], handle)
+            cf.created_fold_id_pickle = True
+
 
     train_pids = [all_pids_list[ix] for ix in train_ix]
     val_pids = [all_pids_list[ix] for ix in val_ix]
@@ -162,8 +174,8 @@ def load_dataset(cf, logger, subset_ixs=None, pp_data_path=None, pp_name=None):
     data = OrderedDict()
     for ix, pid in enumerate(pids):
         # for the experiment conducted here, malignancy scores are binarized: (benign: 1-2, malignant: 3-5)
-        targets = [1 if ii >= 3 else 0 for ii in class_targets[ix]]
-        data[pid] = {'data': imgs[ix], 'seg': segs[ix], 'pid': pid, 'class_target': targets}
+        # targets = [1 if ii >= 3 else 0 for ii in class_targets[ix]]
+        data[pid] = {'data': imgs[ix], 'seg': segs[ix], 'pid': pid, 'class_target': class_targets[ix]}
         data[pid]['fg_slices'] = p_df['fg_slices'].tolist()[ix]
 
     return data

@@ -30,8 +30,8 @@ from skimage.transform import resize
 import subprocess
 import pickle
 
-from .utils.transforms import *
-from.utils.datasets import DataManager
+from utils.transforms import *
+from utils.datasets import DataManager
 
 import configs
 cf = configs.configs()

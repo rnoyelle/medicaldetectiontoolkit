@@ -379,10 +379,10 @@ class FilterObject(object):
         else:
             key = self.keys[0]
             mask = img_dict[key]
-            n_obj = len(np.unique(mask))
+            n_obj = len(np.unique(mask)) - 1
 
             bbox = []
-            for i in range(1, n_obj):
+            for i in range(1, n_obj + 1):
                 indexes = np.where(mask == i)
                 x1, x2 = min(indexes[0]), max(indexes[0])
                 y1, y2 = min(indexes[1]), max(indexes[1])
@@ -399,14 +399,14 @@ class FilterObject(object):
 
             mapper = {0: 0}
             ii = 1
-            for i in range(len(area)):
-                if area[i]:
-                    mapper[i] = ii
+            for i in range(len(idx)):
+                if idx[i]:
+                    mapper[i+1] = ii
                     ii += 1
                 else:
-                    mapper[i] = 0
+                    mapper[i+1] = 0
 
-            mask = np.array(list(map(mapper, mask)))
+            mask = np.vectorize(mapper.__getitem__)(mask)
             img_dict[key] = mask
 
         return img_dict
