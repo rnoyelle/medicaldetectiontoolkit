@@ -357,48 +357,57 @@ class FilterObject(object):
     Remove object with too small bounding boxes
     """
 
-    def __init__(self, keys, tval, channels_first=True):
+    def __init__(self, keys, tval, from_onehot=True, channels_first=True):
         self.keys = (keys,) if isinstance(keys, str) else keys
         self.tval = tval
+        self.from_onehot = from_onehot
         self.channels_first = channels_first
         assert self.channels_first
 
     def __call__(self, img_dict):
-        area = img_dict['area']
-        # selected only R.O.I/object above the threshold
-        idx = (area > self.tval)
-        for i in range(0, 2):
-            bbox_lenght = img_dict['bbox'][: i + 3] - img_dict['bbox'][:, i]
-            idx = np.logical_and(idx, bbox_lenght > 1)
+        if self.from_onehot:
+            area = img_dict['area']
+            # selected only R.O.I/object above the threshold
+            idx = (area > self.tval)
+            for i in range(0, 2):
+                bbox_lenght = img_dict['boxes'][:, i + 3] - img_dict['boxes'][:, i]
+                idx = np.logical_and(idx, bbox_lenght > 1)
 
-        img_dict['area'] = area[idx]
-        img_dict['mask_img'] = img_dict['mask_img'][idx]
-        img_dict['boxes'] = img_dict['boxes'][idx]
+            img_dict['area'] = area[idx]
+            img_dict['mask_img'] = img_dict['mask_img'][idx]
+            img_dict['boxes'] = img_dict['boxes'][idx]
+        else:
+            key = self.keys[0]
+            mask = img_dict[key]
+            n_obj = len(np.unique(mask))
 
-        return img_dict
+            bbox = []
+            for i in range(1, n_obj):
+                indexes = np.where(mask == i)
+                x1, x2 = min(indexes[0]), max(indexes[0])
+                y1, y2 = min(indexes[1]), max(indexes[1])
+                z1, z2 = min(indexes[2]), max(indexes[2])
+                bbox.append([x1, y1, z1, x2, y2, z2])
 
+            bbox = np.array(bbox)
+            area = (bbox[:, 3] - bbox[:, 0] + 1) * (bbox[:, 4] - bbox[:, 1] + 1) * (bbox[:, 5] - bbox[:, 2] + 1)
 
-class FilterObject(object):
-    """
-    Remove object with too small bounding boxes
-    """
+            idx = (area > self.tval)
+            for i in range(0, 2):
+                bbox_lenght = bbox[:, i + 3] - bbox[:, i]
+                idx = np.logical_and(idx, bbox_lenght > 1)
 
-    def __init__(self, keys, tval, from_onehot=False):
-        self.keys = (keys,) if isinstance(keys, str) else keys
-        self.tval = tval
-        self.from_onehot = from_onehot
+            mapper = {0: 0}
+            ii = 1
+            for i in range(len(area)):
+                if area[i]:
+                    mapper[i] = ii
+                    ii += 1
+                else:
+                    mapper[i] = 0
 
-    def __call__(self, img_dict):
-        area = img_dict['area']
-        # selected only R.O.I/object above the threshold
-        idx = (area > self.tval)
-        for i in range(0, 2):
-            bbox_lenght = img_dict['bbox'][: i + 3] - img_dict['bbox'][:, i]
-            idx = np.logical_and(idx, bbox_lenght > 1)
-
-        img_dict['area'] = area[idx]
-        img_dict['mask_img'] = img_dict['mask_img'][idx]
-        img_dict['boxes'] = img_dict['boxes'][idx]
+            mask = np.array(list(map(mapper, mask)))
+            img_dict[key] = mask
 
         return img_dict
 
@@ -453,13 +462,14 @@ class ResampleReshapeAlign(object):
 
     def __call__(self, img_dict):
         # compute transformation parameters
-        new_origin = self.compute_new_origin(img_dict[self.origin_key])
         if self.target_shape is not None:
             target_shape = self.target_shape
         else:
             src_size = img_dict[self.origin_key].GetSize()
             src_spacing = img_dict[self.origin_key].GetSpacing()
             target_shape = tuple([int(src_size[i] * src_spacing[i] / self.target_voxel_spacing[i]) for i in range(len(src_size))])
+
+        new_origin = self.compute_new_origin(img_dict[self.origin_key], target_shape)
 
         # save meta information of before transformation
         if self.add_meta_info:
@@ -484,8 +494,8 @@ class ResampleReshapeAlign(object):
 
         return img_dict
 
-    def compute_new_origin_head2hip(self, pet_img):
-        new_shape = self.target_shape
+    def compute_new_origin_head2hip(self, pet_img, target_shape):
+        new_shape = target_shape
         new_spacing = self.target_voxel_spacing
         pet_size = pet_img.GetSize()
         pet_spacing = pet_img.GetSpacing()
@@ -495,20 +505,20 @@ class ResampleReshapeAlign(object):
                       pet_origin[2] + 1.0 * pet_size[2] * pet_spacing[2] - 1.0 * new_shape[2] * new_spacing[2])
         return new_origin
 
-    def compute_new_origin_centered_img(self, img):
+    def compute_new_origin_centered_img(self, img, target_shape):
         origin = np.asarray(img.GetOrigin())
         shape = np.asarray(img.GetSize())
         spacing = np.asarray(img.GetSpacing())
-        new_shape = np.asarray(self.target_shape)
+        new_shape = np.asarray(target_shape)
         new_spacing = np.asarray(self.target_voxel_spacing)
 
         return tuple(origin + 0.5 * (shape * spacing - new_shape * new_spacing))
 
-    def compute_new_origin(self, img):
+    def compute_new_origin(self, img, target_shape):
         if self.origin == 'middle':
-            return self.compute_new_origin_centered_img(img)
+            return self.compute_new_origin_centered_img(img, target_shape)
         elif self.origin == 'head':
-            return self.compute_new_origin_head2hip(img)
+            return self.compute_new_origin_head2hip(img, target_shape)
 
     def resample_img(self, img, target_shape, target_voxel_spacing, target_direction,
                      new_origin, default_value, interpolator):
@@ -580,7 +590,7 @@ class ConcatModality(object):
 
     def __call__(self, img_dict):
         idx_channel = 0 if self.channel_first else -1
-        imgs = (img_dict.pop([key]) for key in self.keys)
+        imgs = (img_dict.pop(key) for key in self.keys)
         img_dict[self.new_key] = np.stack(imgs, axis=idx_channel)
 
         return img_dict

@@ -33,7 +33,7 @@ class configs(DefaultConfigs):
         self.csv_path = "/home/oncopole/Documents/Rudy/DeepOncopole/data/DB_PATH_NIFTI.csv"
         # self.root_dir = '/path/to/raw/data'
         # self.raw_data_dir = '{}/data_nrrd'.format(self.root_dir)
-        self.pp_dir = "/media/oncopole/83c5223d-7a01-4ed0-b268-b877a7da96e2/Rudy/data/object_detection"  # '{}/pp_norm'.format(self.root_dir)
+        self.pp_dir = "/media/oncopole/83c5223d-7a01-4ed0-b268-b877a7da96e2/Rudy/object_detection/pp_data"  # '{}/pp_norm'.format(self.root_dir)
 
         self.target_spacing = (2.4, 2.4, 2.4)  # (0.7, 0.7, 1.25)
         self.direction = (1, 0, 0, 0, 1, 0, 0, 0, 1)

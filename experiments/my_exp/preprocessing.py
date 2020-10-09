@@ -59,9 +59,8 @@ def main():
                                  add_meta_info=True),
             Sitk2Numpy(keys=['pet_img', 'ct_img', 'mask_img']),
             # Semantic ground truth to instance object
-            ConnectedComponent(keys='mask_img', to_onehot=True, channels_first=True, exclude_background=False),
-            GenerateBbox(keys='mask_img', channels_first=True),
-            FilterObject(keys='mask_img', tval=27, channels_first=True),
+            ConnectedComponent(keys='mask_img', to_onehot=False, channels_first=True, exclude_background=False),
+            FilterObject(keys='mask_img', tval=50, from_onehot=False),
             # normalize input
             ScaleIntensityRanged(
                 keys=["pet_img"], a_min=0.0, a_max=25.0, b_min=0.0, b_max=1.0, clip=True,
@@ -72,7 +71,7 @@ def main():
             # Concat Modality in one input
             ConcatModality(keys=['pet_img', 'ct_img']),
         ])
-    for subset, dataset in zip(['train', 'val', 'test'], [train_dataset, val_datatset, test_dataset]):
+    for subset, dataset in zip(['train', 'val', 'test'], [train_dataset, val_dataset, test_dataset]):
 
         for count, img_dict in enumerate(dataset):
             # print("{} : [{} / {}] ".format(subset, count, len(dataset)))
@@ -80,10 +79,10 @@ def main():
             # preprocess data
             pp_data = transforms(img_dict)
 
-            pid = pp_data['study_uid']
+            pid = pp_data['image_id']
             img_arr = pp_data['image']
             final_rois = pp_data['mask_img']
-            final_rois = np.max(final_rois, axis=0)  # one-hot to label encoding
+            # final_rois = np.max(final_rois, axis=0)  # one-hot to label encoding
 
             fg_slices = [ii for ii in np.unique(np.argwhere(final_rois != 0)[:, 0])] # axis 0 = z-axis
             class_target = np.ones(len(np.unique(final_rois)) - 1)  # everything is foreground
