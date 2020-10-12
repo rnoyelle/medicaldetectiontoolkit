@@ -46,7 +46,7 @@ class configs(DefaultConfigs):
         self.dim = 3  # 2
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn', 'detection_unet'].
-        self.model = 'ufrcnn'  # 'mrcnn'  # 'retina_unet'
+        self.model = 'mrcnn'  # 'mrcnn'  # 'retina_unet'
 
         DefaultConfigs.__init__(self, self.model, server_env, self.dim)
 
@@ -181,7 +181,7 @@ class configs(DefaultConfigs):
             self.da_kwargs['do_elastic_deform'] = False
             self.da_kwargs['angle_x'] = (0, 0.0)
             self.da_kwargs['angle_y'] = (0, 0.0)  # must be 0!!
-            self.da_kwargs['angle_z'] = (0., 2 * np.pi)
+            self.da_kwargs['angle_z'] = (-2 * np.pi * 15.0/360.0, 2 * np.pi * 15.0/360.0)
 
         #########################
         #   Add model specifics #
@@ -240,11 +240,11 @@ class configs(DefaultConfigs):
         self.num_seg_classes = 2  # foreground vs. background
 
         # feature map strides per pyramid level are inferred from architecture.
-        self.backbone_strides = {'xy': [4, 8, 16, 32], 'z': [1, 2, 4, 8, 16, 32]}
+        self.backbone_strides = {'xy': [4, 8, 16, 32], 'z': [4, 8, 16, 32]}
 
         # anchor scales are chosen according to expected object sizes in data set. Default uses only one anchor scale
         # per pyramid level. (outer list are pyramid levels (corresponding to BACKBONE_STRIDES), inner list are scales per level.)
-        self.rpn_anchor_scales = {'xy': [[8], [16], [32], [64]], 'z': [[2], [4], [8], [16], [32], [64]]}
+        self.rpn_anchor_scales = {'xy': [[8], [16], [32], [64]], 'z': [[8], [16], [32], [64]]}
 
         # choose which pyramid levels to extract features from: P2: 0, P3: 1, P4: 2, P5: 3.
         self.pyramid_levels = [0, 1, 2, 3]
