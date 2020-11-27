@@ -312,9 +312,10 @@ def proposal_layer(rpn_pred_probs, rpn_pred_deltas, proposal_count, anchors, cf)
     batch_anchors = anchors
     batch_normalized_boxes = []
     batch_out_proposals = []
-
+    # print(batch_scores.shape,  batch_deltas.shape, batch_anchors.shape)
     # loop over batch dimension.
     for ix in range(batch_scores.shape[0]):
+        # print(ix)
 
         scores = batch_scores[ix]
         deltas = batch_deltas[ix]
@@ -329,7 +330,13 @@ def proposal_layer(rpn_pred_probs, rpn_pred_deltas, proposal_count, anchors, cf)
         scores, order = scores.sort(descending=True)
         order = order[:pre_nms_limit]
         scores = scores[:pre_nms_limit]
+        # print(deltas.shape)
         deltas = deltas[order, :]
+        # print(deltas.shape)
+        # print(pre_nms_limit, cf.pre_nms_limit, anchors.size())
+        # print(anchors.shape, deltas.shape, order.shape)
+        # print(order.shape)
+        # print(order)
         anchors = anchors[order, :]
 
         # apply deltas to anchors to get refined anchors and filter with non-maximum surpression.
@@ -861,6 +868,10 @@ class net(nn.Module):
                 'seg_preds': pixel-wise class predictions (b, 1, y, x, (z)) with values [0, n_classes].
                 'monitor_values': dict of values to be monitored.
         """
+        print('pid', batch['pid'])
+        # print('class_target', batch['class_target'])
+        # print('roi_labels', batch['roi_labels'])
+        # dict_keys(['data', 'seg', 'pid', 'class_target', 'bb_target', 'roi_masks', 'roi_labels']
         img = batch['data']
         gt_class_ids = batch['roi_labels']
         gt_boxes = batch['bb_target']
@@ -933,14 +944,16 @@ class net(nn.Module):
 
         # compute mrcnn losses.
         mrcnn_class_loss = compute_mrcnn_class_loss(target_class_ids, mrcnn_class_logits)
+        # print('size target_class_ids', target_class_ids.size(), len(target_class_ids.size()) == 0)
+        # print(target_class_ids)
         mrcnn_bbox_loss = compute_mrcnn_bbox_loss(mrcnn_target_deltas, mrcnn_pred_deltas, target_class_ids)
 
         # mrcnn can be run without pixelwise annotations available (Faster R-CNN mode).
         # In this case, the mask_loss is taken out of training.
-        if not self.cf.frcnn_mode:
-            mrcnn_mask_loss = compute_mrcnn_mask_loss(target_mask, mrcnn_pred_mask, target_class_ids)
-        else:
-            mrcnn_mask_loss = torch.FloatTensor([0]).cuda()
+        # if not self.cf.frcnn_mode:
+        mrcnn_mask_loss = compute_mrcnn_mask_loss(target_mask, mrcnn_pred_mask, target_class_ids)
+        # else:
+        #     mrcnn_mask_loss = torch.FloatTensor([0]).cuda()
 
         loss = batch_rpn_class_loss + batch_rpn_bbox_loss + mrcnn_class_loss + mrcnn_bbox_loss + mrcnn_mask_loss
 

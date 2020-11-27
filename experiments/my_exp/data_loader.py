@@ -52,11 +52,21 @@ def get_train_generators(cf, logger):
     all_pids_list = np.unique([v['pid'] for (k, v) in all_data.items()])
 
     if not cf.created_fold_id_pickle:
-        fg = dutils.fold_generator(seed=cf.seed, n_splits=cf.n_cv_splits, len_data=len(all_pids_list)).get_fold_names()
+        df = pd.read_csv(cf.csv_path)
+        df = df[df['PET'] == 'pet0']
+
+        train_ix = df[df['subset'] =='train']['STUDY_UID'].values
+        val_ix = df[df['subset'] =='val']['STUDY_UID'].values
+        test_ix = df[df['subset'] =='test']['STUDY_UID'].values
         with open(os.path.join(cf.exp_dir, 'fold_ids.pickle'), 'wb') as handle:
-            pickle.dump(fg, handle)
+            pickle.dump([[train_ix, val_ix, test_ix, 0]], handle)
         cf.created_fold_id_pickle = True
-        train_ix, val_ix, test_ix, _ = fg[cf.fold]
+	
+        #fg = dutils.fold_generator(seed=cf.seed, n_splits=cf.n_cv_splits, len_data=len(all_pids_list)).get_fold_names()
+        #with open(os.path.join(cf.exp_dir, 'fold_ids.pickle'), 'wb') as handle:
+        #    pickle.dump(fg, handle)
+        #cf.created_fold_id_pickle = True
+        #train_ix, val_ix, test_ix, _ = fg[cf.fold]
     else:
         if os.path.isfile(os.path.join(cf.exp_dir, 'fold_ids.pickle')):
             with open(os.path.join(cf.exp_dir, 'fold_ids.pickle'), 'rb') as handle:
@@ -73,9 +83,9 @@ def get_train_generators(cf, logger):
                 pickle.dump([[train_ix, val_ix, test_ix, 0]], handle)
             cf.created_fold_id_pickle = True
 
-
-    train_pids = [all_pids_list[ix] for ix in train_ix]
-    val_pids = [all_pids_list[ix] for ix in val_ix]
+    print(all_pids_list)
+    train_pids = [ix for ix in train_ix if ix in all_pids_list]
+    val_pids = [ix for ix in val_ix if ix in all_pids_list]
 
     if cf.hold_out_test_set:
         train_pids += [all_pids_list[ix] for ix in test_ix]
@@ -175,7 +185,9 @@ def load_dataset(cf, logger, subset_ixs=None, pp_data_path=None, pp_name=None):
     for ix, pid in enumerate(pids):
         # for the experiment conducted here, malignancy scores are binarized: (benign: 1-2, malignant: 3-5)
         # targets = [1 if ii >= 3 else 0 for ii in class_targets[ix]]
-        data[pid] = {'data': imgs[ix], 'seg': segs[ix], 'pid': pid, 'class_target': class_targets[ix]}
+        # targets = [1 if int(ii) >= 1 else 0 for ii in class_targets[ix]]
+        targets = [0 for ii in class_targets[ix]]
+        data[pid] = {'data': imgs[ix], 'seg': segs[ix], 'pid': pid, 'class_target': targets}
         data[pid]['fg_slices'] = p_df['fg_slices'].tolist()[ix]
 
     return data
@@ -195,9 +207,10 @@ def create_data_gen_pipeline(patient_data, cf, is_training=True):
 
     # add transformations to pipeline.
     my_transforms = []
+    # is_training = False
     if is_training:
-        mirror_transform = Mirror(axes=np.arange(cf.dim))
-        my_transforms.append(mirror_transform)
+        # mirror_transform = Mirror(axes=np.arange(cf.dim))
+        # my_transforms.append(mirror_transform)
         spatial_transform = SpatialTransform(patch_size=cf.patch_size[:cf.dim],
                                              patch_center_dist_from_border=cf.da_kwargs['rand_crop_dist'],
                                              do_elastic_deform=cf.da_kwargs['do_elastic_deform'],
@@ -213,8 +226,8 @@ def create_data_gen_pipeline(patient_data, cf, is_training=True):
 
     my_transforms.append(ConvertSegToBoundingBoxCoordinates(cf.dim, get_rois_from_seg_flag=False, class_specific_seg_flag=cf.class_specific_seg_flag))
     all_transforms = Compose(my_transforms)
-    # multithreaded_generator = SingleThreadedAugmenter(data_gen, all_transforms)
-    multithreaded_generator = MultiThreadedAugmenter(data_gen, all_transforms, num_processes=cf.n_workers, seeds=range(cf.n_workers))
+    multithreaded_generator = SingleThreadedAugmenter(data_gen, all_transforms)
+    # multithreaded_generator = MultiThreadedAugmenter(data_gen, all_transforms, num_processes=cf.n_workers, seeds=range(cf.n_workers))
     return multithreaded_generator
 
 
@@ -251,7 +264,7 @@ class BatchGenerator(SlimDataLoaderBase):
         for b in batch_ixs:
             patient = patients[b][1]
 
-            data = np.transpose(np.load(patient['data'], mmap_mode='r'), axes=(1, 2, 0))[np.newaxis] # (c, y, x, z)
+            data = np.transpose(np.load(patient['data'], mmap_mode='r'), axes=(0, 2, 3, 1))  # (c, y, x, z)
             seg = np.transpose(np.load(patient['seg'], mmap_mode='r'), axes=(1, 2, 0))
             batch_pids.append(patient['pid'])
             batch_targets.append(patient['class_target'])
@@ -350,7 +363,7 @@ class PatientBatchIterator(SlimDataLoaderBase):
 
         pid = self.dataset_pids[self.patient_ix]
         patient = self._data[pid]
-        data = np.transpose(np.load(patient['data'], mmap_mode='r'), axes=(1, 2, 0))[np.newaxis] # (c, y, x, z)
+        data = np.transpose(np.load(patient['data'], mmap_mode='r'), axes=(0, 2, 3, 1))  # (c, y, x, z)
         seg = np.transpose(np.load(patient['seg'], mmap_mode='r'), axes=(1, 2, 0))
         batch_class_targets = np.array([patient['class_target']])
 

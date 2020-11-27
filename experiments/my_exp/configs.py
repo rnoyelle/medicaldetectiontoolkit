@@ -49,9 +49,10 @@ class configs(DefaultConfigs):
         self.model = 'mrcnn'  # 'mrcnn'  # 'retina_unet'
 
         DefaultConfigs.__init__(self, self.model, server_env, self.dim)
+        self.n_workers = 1
 
         # int [0 < dataset_size]. select n patients from dataset for prototyping. If None, all data is used.
-        self.select_prototype_subset = 100
+        self.select_prototype_subset = None
 
         # path to preprocessed data.
         self.pp_name = 'lymphoma_mdt'
@@ -117,8 +118,8 @@ class configs(DefaultConfigs):
         #########################
 
         self.num_epochs = 100
-        self.num_train_batches = 200 if self.dim == 2 else 200
-        self.batch_size = 20 if self.dim == 2 else 8
+        self.batch_size = 20 if self.dim == 2 else 1
+        self.num_train_batches = 200 if self.dim == 2 else int(np.floor(800/self.batch_size))
 
         self.do_validation = True
         # decide whether to validate on entire patient volumes (like testing) or sampled patches (like training)
@@ -142,10 +143,10 @@ class configs(DefaultConfigs):
         self.report_score_level = ['patient', 'rois']  # choose list from 'patient', 'rois'
         # self.class_dict = {1: 'benign', 2: 'malignant'}  # 0 is background.
         self.class_dict = {1: 'lymphoma'}  # 0 is background.
-        self.patient_class_of_interest = 2  # patient metrics are only plotted for one class.
+        self.patient_class_of_interest = 1  # patient metrics are only plotted for one class.
         self.ap_match_ious = [0.1]  # list of ious to be evaluated for ap-scoring.
 
-        self.model_selection_criteria = ['malignant_ap', 'benign_ap']  # criteria to average over for saving epochs.
+        self.model_selection_criteria = ['lymphoma_ap']  # ['malignant_ap', 'benign_ap']  # criteria to average over for saving epochs.
         self.min_det_thresh = 0.1  # minimum confidence value to select predictions for evaluation.
 
         # threshold for clustering predictions together (wcs = weighted cluster scoring).
@@ -215,7 +216,7 @@ class configs(DefaultConfigs):
 
         # if 'True', loss distinguishes all classes, else only foreground vs. background (class agnostic).
         self.class_specific_seg_flag = True
-        self.num_seg_classes = 3 if self.class_specific_seg_flag else 2
+        self.num_seg_classes = 2 if self.class_specific_seg_flag else 2
         self.head_classes = self.num_seg_classes
 
     def add_mrcnn_configs(self):
@@ -240,11 +241,11 @@ class configs(DefaultConfigs):
         self.num_seg_classes = 2  # foreground vs. background
 
         # feature map strides per pyramid level are inferred from architecture.
-        self.backbone_strides = {'xy': [4, 8, 16, 32], 'z': [4, 8, 16, 32]}
+        self.backbone_strides = {'xy': [4, 8, 16, 32], 'z': [1, 2, 4, 8]}
 
         # anchor scales are chosen according to expected object sizes in data set. Default uses only one anchor scale
         # per pyramid level. (outer list are pyramid levels (corresponding to BACKBONE_STRIDES), inner list are scales per level.)
-        self.rpn_anchor_scales = {'xy': [[8], [16], [32], [64]], 'z': [[8], [16], [32], [64]]}
+        self.rpn_anchor_scales = {'xy': [[8], [16], [32], [64]], 'z': [[4], [8], [16], [32]]}
 
         # choose which pyramid levels to extract features from: P2: 0, P3: 1, P4: 2, P5: 3.
         self.pyramid_levels = [0, 1, 2, 3]
@@ -285,7 +286,7 @@ class configs(DefaultConfigs):
             self.scale = self.scale[:4]
 
         # pre-selection in proposal-layer (stage 1) for NMS-speedup. applied per batch element.
-        self.pre_nms_limit = 3000 if self.dim == 2 else 6000
+        self.pre_nms_limit = 3000 if self.dim == 2 else 3000
 
         # n_proposals to be selected after NMS per batch element. too high numbers blow up memory if "detect_while_training" is True,
         # since proposals of the entire batch are forwarded through second stage in as one "batch".
@@ -334,7 +335,7 @@ class configs(DefaultConfigs):
             self.anchor_matching_iou = 0.5
 
             # if 'True', seg loss distinguishes all classes, else only foreground vs. background (class agnostic).
-            self.num_seg_classes = 3 if self.class_specific_seg_flag else 2
+            self.num_seg_classes = 2 if self.class_specific_seg_flag else 2
 
             if self.model == 'retina_unet':
                 self.operate_stride1 = True
